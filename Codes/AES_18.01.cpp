@@ -1,13 +1,20 @@
 #include<bits/stdc++.h>
 using namespace std;
 typedef bitset<8> byte;
+
 string Hex(int n);
 string binary_to_hex(byte s);
+string circularByteLeftShift();
+string byteSubstitute();
 
 
 byte keyInBits[4][4];
 byte plainTextInBits[4][4];
 string keyInEnglish, plainTextInEnglish;
+string hexaKey[4][4];
+string hexaPlain[4][4];
+string w[100][100];
+
 
 // test comment
 
@@ -56,8 +63,9 @@ void calculateKeyInBits()
     {
         for(int j=0;j<4;j++)
         {
-            keyInBits[i][j]=(int)(keyInEnglish[i+4*j]);
-            cout << binary_to_hex(keyInBits[i][j] )<< " ";    
+            keyInBits[i][j]=(int)(keyInEnglish[i*4+j]);
+            hexaKey[i][j] = binary_to_hex(keyInBits[i][j] );
+            cout << hexaKey[i][j]<< " ";    
         }
         cout << endl;
     }
@@ -71,15 +79,24 @@ void calculatePlainTextInBits()
     {
         for(int j=0;j<4;j++)
         {
-            plainTextInBits[i][j]=(plainTextInEnglish[i+4*j]);
-            cout << binary_to_hex(plainTextInBits[i][j]) << " ";          
+            plainTextInBits[i][j]=(plainTextInEnglish[i*4+j]);
+            hexaPlain[i][j] = binary_to_hex(plainTextInBits[i][j]);
+            cout << hexaPlain[i][j] << " ";          
         }
         cout << endl;
+    }
+
+    for(int i=0;i<4;i++){
+        for(int j=0;j<4;j++){
+                cout<<hexaPlain[i][j];
+        }
     }
 }
 
 
+
 string binary_to_hex(byte s){
+
     int arr[] = {8, 4, 2, 1};
     int hex1 = 0, hex2 = 0;
     string b = s.to_string();
@@ -104,6 +121,7 @@ string binary_to_hex(byte s){
 
 
 string Hex(int n){
+    
     if(n == 10){
         return "A";
     }
@@ -128,6 +146,69 @@ string Hex(int n){
 }
 
 
+void divide(){ // make w
+
+    for(int i = 0; i < 4; i++){
+        for(int j = 0; j < 4; j++){
+            if(i == 0){
+                
+                w[i][j] = hexaKey[i][j];
+            }
+            else if(i == 1){
+                
+                w[i][j] = hexaKey[i][j];
+            }
+            else if(i == 2){
+               
+                w[i][j] = hexaKey[i][j];
+            }
+            else if(i == 3){
+                
+                w[i][j] = hexaKey[i][j];
+            }
+            cout << w[i][j] << " ";
+
+        }
+        cout << endl;
+        if(i%4 == 3){
+            circularByteLeftShift();
+        }
+    }
+
+}
+string circularByteLeftShift(){
+    int t = 0;
+    string temp = w[3][t];
+    for(t = 0; t < 3; t++){
+        w[3][t] = w[3][t+1];       
+    }
+    w[3][t] = temp;
+
+    /*
+    cout << "W[3]" << endl;
+    for(int i = 0; i < 4; i++){
+        for(int j = 0; j < 4; j++){
+            if(i == 3){
+                cout << w[i][j] << " ";
+            }
+        }
+        cout << endl;
+    }
+    */  
+}
+
+/*string byteSubstitute(){
+    string s;
+    for(int j = 0; j < 4; j++){
+        s = w[3][j];
+        int c = (s[0]);
+        int r = (s[1]);
+        w[3][j] = S_Box[c][r];
+        
+    }
+}*/
+
+
 int main(){
 
     keyInEnglish="Thats my Kung Fu";
@@ -136,7 +217,8 @@ int main(){
     calculateKeyInBits();    
     cout << "\nPlainText in Hex\n" << endl;
     calculatePlainTextInBits();
-
-
-
+    cout << "w" << endl;
+    divide();
+    
+    
 }
