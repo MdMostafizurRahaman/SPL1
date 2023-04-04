@@ -1,97 +1,40 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<string.h>
-#include<unistd.h>
-#include<sys/types.h>
-#include<sys/socket.h>
-#include<netinet/in.h>
+#include <netinet/in.h> //structure for storing address information
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h> //for socket APIs
+#include <sys/types.h>
 
-int main(int argc, char *argv[])
+int main(int argc, char const* argv[])
 {
-    if(argc < 2)
-    {
-        fprintf(stderr,"Port no is nopt provided. Program Terminated\n");
-        exit(1);
-    }
-    
-    int sock_desc = socket(AF_INET, SOCK_STREAM, 0);
-	if(sock_desc == -1)
-	{
-		printf("NO socket is created!\n");
-	}
-	else
-	{
-		printf("Socket is created!\n");
-	}
 
-    int newsock_desc, portno, n;
-    char buffer[255];
+	// create server socket similar to what was done in
+	// client program
+	int servSockD = socket(AF_INET, SOCK_STREAM, 0);
 
-    struct sockaddr_in serv_addr,cli_addr;
-    socklen_t clilen;
+	// string store data to send to client
+	char serMsg[255] = "Message from the server to the "
+					"client \'Hello Client\' ";
 
-    bzero((char*)&serv_addr, sizeof(serv_addr));
-    portno = atoi(argv[1]);
+	// define server address
+	struct sockaddr_in servAddr;
 
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_addr.s_addr = INADDR_ANY;
-    serv_addr.sin_port = htons(portno);
+	servAddr.sin_family = AF_INET;
+	servAddr.sin_port = htons(9001);
+	servAddr.sin_addr.s_addr = INADDR_ANY;
 
-    if(bind(sock_desc, (struct sockaddr*) &serv_addr,sizeof(serv_addr)) < 0)
-    {
-        printf("Binding Failed...\n");
-    }
-    else
-    {
-        printf("Binding successful...\n");
-    }
+	// bind socket to the specified IP and port
+	bind(servSockD, (struct sockaddr*)&servAddr,
+		sizeof(servAddr));
 
-    listen(sock_desc, 5);
-    clilen = sizeof(cli_addr);
+	// listen for connections
+	listen(servSockD, 1);
 
-    newsock_desc = accept(sock_desc, (struct sockaddr*)&cli_addr, &clilen);
-    if(newsock_desc < 0)
-    {
-        printf("Error on accept\n");
-    }
-    else
-    {
-        printf("Accepted...\n");
-    }
+	// integer to hold client socket.
+	int clientSocket = accept(servSockD, NULL, NULL);
 
-    while(1)
-    {
-        bzero(buffer, 255);
-        n = read(newsock_desc, buffer, 255);
-        if(n < 0)
-        {
-            printf("Error on Reading");
-        }
-        
-        printf("Client:%s\n", buffer);
-        bzero(buffer, 255);
-        fgets(buffer, 255, stdin);
+	// send's messages to client socket
+	send(clientSocket, serMsg, sizeof(serMsg), 0);
 
-       n = write(newsock_desc, buffer, strlen(buffer));
-       if(n < 0)
-       {
-        printf("Error on writing\n");
-       }
-       
-
-       int i = strncmp("Bye", buffer, 3);
-       if(i == 0)
-       break;
-
-       close(newsock_desc);
-       close(sock_desc);
-       return 0;
-
-    }
-
-
-
-
-
-
+	return 0;
 }
+
