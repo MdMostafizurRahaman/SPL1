@@ -3,37 +3,45 @@
 #include<unistd.h>
 #include<pthread.h>
 
-int a = 0;
+pthread_mutex_t locked;
+int a;
 
-void *thread(void * th)
+void *processFunction(void *th)
 {
-    int *id = (int *)th;
-    static int b = 0;
+    pthread_mutex_lock(&locked);
+    int i = 0;
+    a++;
 
-    a = 10;
-    b = 20;
-    sleep(1);
+    while(i < 6)
+    {
+        printf("%d\n",i);
+        sleep(2);
+        i++;
+    }
+    printf("Loop finished\n");
 
-    printf("The id of thread is:%d\n", *id);
-    printf("The value of a is:%d\n", a);
-    printf("The value of b is:%d\n", b);
-
-    return NULL;
+    pthread_mutex_unlock(&locked);
+    return 0;
 }
+
 
 int main()
 {
-    pthread_t thread1;
+    pthread_t thread1, thread2;
 
-    printf("Before thread use\n");
-
-    for(int i = 0; i < 3; i++)
+    if(pthread_mutex_init(&locked, NULL) != 0)
     {
-        pthread_create(&thread1, NULL, thread, (void*)&thread1);
-        pthread_join(thread1, NULL);
+        printf("Mutex was created unsuccessfully\n");
+        exit(0);
     }
+    a = 0;
+    pthread_create(&thread1, NULL, processFunction, NULL);
+    pthread_create(&thread2, NULL, processFunction, NULL);
+    
+    pthread_join(thread1, NULL);
+    pthread_join(thread2, NULL);
     
     
-
     printf("After thread use\n");
+    //return 0;
 }
