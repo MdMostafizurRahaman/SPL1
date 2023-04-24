@@ -8,7 +8,7 @@ int a;
 
 void *processFunction(void *th)
 {
-    pthread_mutex_lock(&locked);
+    //pthread_mutex_lock(&locked);
     int i = 0;
     a++;
 
@@ -20,7 +20,7 @@ void *processFunction(void *th)
     }
     printf("Loop finished\n");
 
-    pthread_mutex_unlock(&locked);
+    //pthread_mutex_unlock(&locked);
     return 0;
 }
 
