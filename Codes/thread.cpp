@@ -5,8 +5,10 @@
 
 void *thread(void * th)
 {
+    int *id = (int *)th;
     sleep(3);
-    printf("First thread use\n");
+    printf("First thread use:%d",*id);
+    printf("\n");
     return NULL;
 }
 
@@ -16,8 +18,13 @@ int main()
 
     printf("Before thread use\n");
 
-    pthread_create(&thread1, NULL, thread, NULL);
-    pthread_join(thread1, NULL);
+    for(int i = 0; i < 10; i++)
+    {
+        pthread_create(&thread1, NULL, thread, (void*)&thread1);
+        pthread_join(thread1, NULL);
+    }
+    
+    
 
     printf("After thread use\n");
 }
