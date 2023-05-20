@@ -16,7 +16,7 @@ struct User users[MAX_USERS];
 int userCount = 0;
 
 void saveUser(struct User user) {
-    FILE *file = fopen("users.txt", "a");
+    FILE *file = fopen("usersFile.txt", "a");
     if (file != NULL) {
         fprintf(file, "%s %s %c %d\n", user.email, user.password, user.gender, user.age);
         fclose(file);
@@ -31,7 +31,7 @@ void registerUser() {
     
     // Check if email already exists
     for (int i = 0; i < userCount; i++) {
-        if (users[i].email == newUser.email) {
+        if (strcmp(users[i].email, newUser.email) == 0) {
             printf("Email already registered!\n");
             return;
         }
@@ -45,7 +45,7 @@ void registerUser() {
     
     printf("Age: ");
     scanf("%d", &newUser.age);
-    
+     
     saveUser(newUser);
     users[userCount++] = newUser;
     printf("Registration successful!\n");
@@ -53,7 +53,7 @@ void registerUser() {
 
 int findUserIndex(char *email) {
     for (int i = 0; i < userCount; i++) {
-        if (users[i].email == email) {
+        if (strcmp(users[i].email, email) == 0) {
             return i;
         }
     }
@@ -79,7 +79,7 @@ void login() {
         printf("Password: ");
         scanf("%s", password);
         
-        if (users[userIndex].password == password) {
+        if (strcmp(users[userIndex].password, password) == 0) {
             printf("Login successful!\n");
             return;
         } else {
@@ -88,15 +88,14 @@ void login() {
         }
     }
     
-    printf("SORRY!!! Too many incorrect attempts. Account blocked.\n");
+    printf("Too many incorrect attempts. Account blocked.\n");
 }
 
 int main() {
-    printf("\n\nWelcome to CHAT SERVER\n\n");
     // Read existing user data from the file
     FILE *file = fopen("users.txt", "r");
     if (file != NULL) {
-        while (fscanf(file, "%s %s %c %d %s", users[userCount].email, users[userCount].password, &users[userCount].gender, &users[userCount].age) != EOF) {
+        while (fscanf(file, "%s %s %c %d", users[userCount].email, users[userCount].password, &users[userCount].gender, &users[userCount].age) != EOF) {
             userCount++;
         }
         fclose(file);
