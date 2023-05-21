@@ -4,21 +4,21 @@
 #define MAX_USERS 100
 #define MAX_EMAIL_LENGTH 50
 #define MAX_PASSWORD_LENGTH 20
+#define USER_NAME 20
 
 struct User {
     char email[MAX_EMAIL_LENGTH];
     char password[MAX_PASSWORD_LENGTH];
-    char gender;
-    int age;
+    char userName[USER_NAME];
 };
 
 struct User users[MAX_USERS];
 int userCount = 0;
 
 void saveUser(struct User user) {
-    FILE *file = fopen("usersFile.txt", "a");
+    FILE *file = fopen("userInfo.txt", "a");
     if (file != NULL) {
-        fprintf(file, "%s %s %c %d\n", user.email, user.password, user.gender, user.age);
+        fprintf(file, "%s %s %s\n", user.email, user.password, user.userName);
         fclose(file);
     }
 }
@@ -40,12 +40,9 @@ void registerUser() {
     printf("Password: ");
     scanf("%s", newUser.password);
     
-    printf("Gender (M/F): ");
-    scanf(" %c", &newUser.gender);
+    printf("User Name: ");
+    scanf(" %s", newUser.userName);
     
-    printf("Age: ");
-    scanf("%d", &newUser.age);
-     
     saveUser(newUser);
     users[userCount++] = newUser;
     printf("Registration successful!\n");
@@ -93,9 +90,9 @@ void login() {
 
 int main() {
     // Read existing user data from the file
-    FILE *file = fopen("users.txt", "r");
+    FILE *file = fopen("userInfo.txt", "r");
     if (file != NULL) {
-        while (fscanf(file, "%s %s %c %d", users[userCount].email, users[userCount].password, &users[userCount].gender, &users[userCount].age) != EOF) {
+        while (fscanf(file, "%s %s %s", users[userCount].email, users[userCount].password, users[userCount].userName) != EOF) {
             userCount++;
         }
         fclose(file);
@@ -127,3 +124,4 @@ int main() {
 
     return 0;
 }
+
