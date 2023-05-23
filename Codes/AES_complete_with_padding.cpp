@@ -485,7 +485,11 @@ int main()
     unsigned char textToEncrypt[] = "Two One Nine Two";
     unsigned char key[] = "Thats my Kung Fu";
     
-
+    cout << "\nText To Encrypt:";
+    for(int i = 0; i < sizeof(textToEncrypt); i++)
+    {
+        cout << textToEncrypt[i];
+    }
     key_expansion(key);
     //printf("\n");
     //print_key();
@@ -537,7 +541,7 @@ int main()
        
     //encyption(encrypted_text);
     
-    cout << "Cipher Text:";
+    cout << "\nCipher Text:";
     cipher_text(encrypted_text, sizeof(encrypted_text));
     cout << endl;
     unsigned char decrypted_text[extended_length + 1];
@@ -560,9 +564,9 @@ int main()
     
 
     //decryption(textToEncrypt);
-    cout << "\nDecrypyed::";
+    cout << "Decrypyed::";
     decrypted_text_f(decrypted_text, sizeof(decrypted_text));
-
+    cout << endl;
 
 
 }
