@@ -1,0 +1,493 @@
+//complete without grp chat
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <pthread.h>
+
+#define SERVER_PORT 6300
+#define MAX_CLIENTS 10
+#define BUFFER_SIZE 1024
+#define MAX_GROUP_MEMBERS 5
+#define MAX_USERS 100
+#define MAX_EMAIL_LENGTH 50
+#define MAX_PASSWORD_LENGTH 20
+#define USER_NAME 20
+
+typedef struct {
+    int socket;
+    char username[50];
+} Client;
+
+typedef struct {
+    char groupName[50];
+    int members[MAX_GROUP_MEMBERS];
+    int numMembers;
+} Group;
+
+Client clients[MAX_CLIENTS];
+Group groups[MAX_CLIENTS];
+char clientNames[BUFFER_SIZE];
+int numClients = 0;
+int numGroups = 0;
+struct User {
+    char email[MAX_EMAIL_LENGTH];
+    char password[MAX_PASSWORD_LENGTH];
+    char userName[USER_NAME];
+};
+
+struct User users[MAX_USERS];
+int userCount = 0;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void sendToAllClients(const char* message, int senderSocket) {
+    pthread_mutex_lock(&mutex);
+    for (int i = 0; i < numClients; i++) {
+        if (clients[i].socket != senderSocket) {
+            send(clients[i].socket, message, strlen(message), 0);
+        }
+    }
+    pthread_mutex_unlock(&mutex);
+}
+
+void sendToGroup(const char* message, const Group* group, int senderSocket) {
+    pthread_mutex_lock(&mutex);
+    for (int i = 0; i < group->numMembers; i++) {
+        int memberSocket = group->members[i];
+        if (memberSocket != senderSocket) {
+            send(memberSocket, message, strlen(message), 0);
+        }
+    }
+    pthread_mutex_unlock(&mutex);
+}
+
+int findClientSocketByUsername(const char* username) {
+    for (int i = 0; i < numClients; i++) {
+        if (strcmp(clients[i].username, username) == 0) {
+            return clients[i].socket;
+        }
+    }
+    return -1;
+}
+
+void printConnectedClients() {
+
+    pthread_mutex_lock(&mutex);
+    printf("Connected Clients:\n");
+
+    char number[MAX_CLIENTS];
+    
+    for (int i = 0; i < numClients; i++) {
+        printf("Client %d, Username=%s\n", i+1, clients[i].username);
+        sprintf(number, "%d", i+1);  // Convert the number to a string
+
+        strcat(clientNames, "Client ");
+        strcat(clientNames, number);
+        strcat(clientNames, ", Username = ");
+        strcat(clientNames, clients[i].username);
+        strcat(clientNames, "\n");
+
+    }
+    pthread_mutex_unlock(&mutex);
+}
+
+
+void* handleClient(void* arg) {
+    int clientSocket = *((int*)arg);
+    char buffer[BUFFER_SIZE];
+    memset(buffer, 0, sizeof(buffer));
+
+    // Find the client's username
+    char username[50];
+    for (int i = 0; i < numClients; i++) {
+        if (clients[i].socket == clientSocket) {
+            strcpy(username, clients[i].username);
+            break;
+        }
+    }
+
+    while (1) 
+    {
+        int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesRead <= 0) {
+            pthread_mutex_lock(&mutex);
+            for (int i = 0; i < numClients; i++) {
+                if (clients[i].socket == clientSocket) {
+                    printf("Client disconnected: %s\n", username);
+                    close(clients[i].socket);
+                    for (int j = i; j < numClients - 1; j++) {
+                        clients[j] = clients[j + 1];
+                    }
+                    numClients--;
+                    break;
+                }
+            }
+
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
+        if (strcmp(buffer, "/clients") == 0) {
+            printConnectedClients();
+            send(clientSocket, clientNames, strlen(clientNames), 0);
+            memset(clientNames,0,strlen(clientNames));
+
+        }
+
+        else if (strcmp(buffer, "/exit") == 0) {
+            // Leave the chat server
+            pthread_mutex_lock(&mutex);
+            for (int i = 0; i < numClients; i++) {
+                if (clients[i].socket == clientSocket) {
+                    printf("Client left: %s\n", username);
+                    close(clients[i].socket);
+                    for (int j = i; j < numClients - 1; j++) {
+                        clients[j] = clients[j + 1];
+                    }
+                    numClients--;
+                    break;
+                }
+            }
+            pthread_mutex_unlock(&mutex);
+            break;
+        }
+
+        else if (buffer[0] == '@' && buffer[1] == 'a' && buffer[2] == 'l' && buffer[3] == 'l')
+        {
+            // Send the message to all connected clients
+            printf("Message from %s: to all:: %s\n", username, buffer+4);
+
+            pthread_mutex_lock(&mutex);
+            for (int i = 0; i < numClients; i++) {
+                if (clients[i].socket != clientSocket) {
+                    send(clients[i].socket, username, strlen(username), 0);
+                    send(clients[i].socket, ": all::", 7, 0);
+                    send(clients[i].socket, buffer+4, strlen(buffer), 0);
+                }
+            }
+           pthread_mutex_unlock(&mutex);
+        }
+        else if (buffer[0] == '@')
+        {
+            // Extract the recipient's username
+            char recipient[50];
+            sscanf(buffer, "@%s", recipient);
+            printf("recepient:%s\n",recipient);
+
+            printf("Message from %s: %s\n", username, buffer);
+
+            // Find the recipient's socket
+            int recipientSocket = findClientSocketByUsername(recipient);
+
+            // Check if the recipient exists
+            if (recipientSocket != -1) {
+                // Send the message to the recipient
+                send(recipientSocket, username, strlen(username), 0);
+                send(recipientSocket, ": ", 2, 0);
+                send(recipientSocket, buffer+strlen(recipient)+1, strlen(buffer), 0);
+            } else {
+                // Recipient does not exist
+                send(clientSocket, "Recipient does not exist.", 25, 0);
+            }
+          
+        }
+        else if (buffer[0] == '#')
+        {
+            // Create or join a group
+            char groupName[50];
+            sscanf(buffer, "#%s", groupName);
+
+            printf("Message from %s: %s\n", username, buffer);
+
+            pthread_mutex_lock(&mutex);
+
+            //Searches for the client's index
+            int clientIndex = -1;
+            for (int i = 0; i < numClients; i++) {
+                if (clients[i].socket == clientSocket) {
+                    clientIndex = i;
+                    break;
+                }
+            }
+
+            // Check if the client is already a member of the group
+            int groupIndex = -1;
+            for (int i = 0; i < numGroups; i++) {
+                if (strcmp(groups[i].groupName, groupName) == 0) {
+                    groupIndex = i;
+                    break;
+                }
+            }
+
+            if (groupIndex != -1) {
+                // Join the existing group
+                if (groups[groupIndex].numMembers >= MAX_GROUP_MEMBERS) {
+                    // Group is full
+                    send(clientSocket, "Group is full. Unable to join.", 29, 0);
+                } else {
+                    // Add client to the group
+                    groups[groupIndex].members[groups[groupIndex].numMembers] = clientSocket;
+                    groups[groupIndex].numMembers++;
+                    send(clientSocket, "Joined the group.", 17, 0);
+                }
+            } else {
+                // Create a new group and add the client to it
+                if (numGroups >= MAX_CLIENTS) {
+                    // Maximum number of groups reached
+                    send(clientSocket, "Max groups reached. Unable to create a new group.", 47, 0);
+                } else {
+                    // Create the group
+                    strcpy(groups[numGroups].groupName, groupName);
+                    groups[numGroups].members[0] = clientSocket;
+                    groups[numGroups].numMembers = 1;
+                    numGroups++;
+                    send(clientSocket, "Created and joined the group.", 29, 0);
+                }
+            }
+            //memset(username, 0, sizeof(username));//
+            pthread_mutex_unlock(&mutex);
+        }
+        else if (buffer[0] == '$')
+        {
+            // Send a message to a group
+            char groupName[50];
+            sscanf(buffer, "$%s", groupName);
+
+            // Remove '$' from the group name
+            //memmove(groupName, groupName + 1, strlen(groupName));
+
+            printf("Message from %s: %s\n", username, buffer);
+
+            pthread_mutex_lock(&mutex);
+
+            // Find the group
+            int groupIndex = -1;
+            for (int i = 0; i < numGroups; i++) {
+                if (strcmp(groups[i].groupName, groupName) == 0) {
+                    groupIndex = i;
+                    break;
+                }
+            }
+
+            if (groupIndex != -1) {
+                // Send the message to the group
+                sendToGroup(buffer, &groups[groupIndex], clientSocket);
+                
+                send(clientSocket, buffer, sizeof(buffer), 0);//
+                if (strcmp(buffer, "/exit") == 0) {
+                    printf("Leave from Group!!!.\n");
+                    break;
+                }
+
+
+            } else {
+                // Group does not exist
+                send(clientSocket, "Group does not exist.", 21, 0);
+            }
+            //memset(username, 0, sizeof(username));//
+
+            pthread_mutex_unlock(&mutex);
+        }
+        else 
+        {
+            printf("Message from %s: %s\n", username, buffer);
+
+            // Send the message to all other connected clients
+            pthread_mutex_lock(&mutex);
+            for (int i = 0; i < numClients; i++) {
+                if (clients[i].socket != clientSocket) {
+                    send(clients[i].socket, username, strlen(username), 0);
+                    send(clients[i].socket, ": ", 2, 0);
+                    send(clients[i].socket, buffer, strlen(buffer), 0);
+                }
+            }
+            //memset(username, 0, sizeof(username));//
+            pthread_mutex_unlock(&mutex);
+        }
+
+        memset(buffer, 0, sizeof(buffer));
+    }
+
+    pthread_exit(NULL);
+}
+
+
+int main() {
+    int serverSocket, clientSocket;
+    struct sockaddr_in serverAddress, clientAddress;
+    socklen_t clientAddressLength;
+    pthread_t thread;
+
+    // Create server socket
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket < 0) {
+        perror("Error creating socket");
+        exit(1);
+    }
+
+    // Configure server address
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    serverAddress.sin_port = htons(SERVER_PORT);
+
+    // Bind the server socket to a specific address and port
+    if (bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) {
+        perror("Error binding socket");
+        exit(1);
+    }
+
+    // Listen for incoming connections
+    if (listen(serverSocket, MAX_CLIENTS) < 0) {
+        perror("Error listening for connections");
+        exit(1);
+    }
+
+    //printf("Server started. Listening on port %d\n", SERVER_PORT);
+    printf("--------------WELCOME TO CHAT SERVER------------\n");
+    while (1) {
+        // Accept a client connection
+        clientAddressLength = sizeof(clientAddress);
+        clientSocket = accept(serverSocket, (struct sockaddr*)&clientAddress, &clientAddressLength);
+        if (clientSocket < 0) {
+            perror("Error accepting connection");
+            continue;
+        }
+
+        // Limit the number of clients
+        if (numClients >= MAX_CLIENTS) {
+            printf("Max clients reached. Connection rejected.\n");
+            close(clientSocket);
+            continue;
+        }
+
+        // Prompt the client for a username
+        char initialcommand[200];
+        strcpy(initialcommand, " ");
+
+        // Send prompt to enter username
+        send(clientSocket, "For register, type register email password username\n", 51, 0);
+
+        send(clientSocket, "\nFor login, type login username password\n", 40, 0);
+	
+	char passwordH[MAX_PASSWORD_LENGTH + 1];
+    int i = 0;
+    char c;
+
+    
+
+    while (1) {
+        c = getch();  // Read a character without displaying it
+        if (c == '\r' || c == '\n') {
+            break;  // Stop reading when Enter key is pressed
+        } else if (c == '\b' && i > 0) {
+            // Handle backspace
+            printf("\b \b");  // Move the cursor back, overwrite the character with a space, move the cursor back again
+            i--;
+        } else if (i < MAX_PASSWORD_LENGTH) {
+            passwordH[i] = c;
+            printf("*");  // Print an asterisk instead of the actual character
+            i++;
+        }
+    }
+
+    passwordH[i] = '\0';  // Null-terminate the password string
+
+    printf("\nEntered password: %s\n", passwordH);
+	
+        // Receive username from the client
+        int bytesRead = recv(clientSocket, initialcommand, sizeof(initialcommand), 0);
+        if (bytesRead > 0) {
+            // Remove newline character
+            initialcommand[strcspn(initialcommand, "\n")] = '\0';
+        }
+        //printf("received initial: %s",initialcommand);
+
+        char* command;
+        char* username;
+        char* password;
+        char* email;
+
+        // Split the input string using whitespace as the delimiter
+        command = strtok(initialcommand, " ");
+        email = strtok(NULL, " ");
+        password = strtok(NULL, " ");
+        username = strtok(NULL, " ");
+        bool loggedin = false;
+
+        // printf("UserName:%s",username);
+        // printf("command:%s",command);
+        // printf("password:%s",password);
+
+        if(strcmp(command, "login")==0){
+            FILE *file = fopen("userInfo.txt", "r");
+
+            if (file != NULL) {
+                while (fscanf(file, "%s %s", users[userCount].userName, users[userCount].password) != EOF) {
+                    if(strcmp(username, users[userCount].userName) == 0 && strcmp(password, users[userCount].password) == 0)
+                    {
+                        printf("Successful\n");
+                        pthread_mutex_lock(&mutex);
+                        clients[numClients].socket = clientSocket;
+                        strcpy(clients[numClients].username, username);
+                        loggedin=true;
+                        numClients++;
+                        pthread_mutex_unlock(&mutex);
+
+                        // Create a new thread to handle the client
+                        pthread_create(&thread, NULL, handleClient, &clientSocket);
+                        memset(initialcommand, 0, sizeof(initialcommand));
+                    }
+                    userCount++;
+                }
+                if(!loggedin)
+                    send(clientSocket, "Not Found!!!", 12, 0);
+
+                fclose(file);
+            }
+        }
+        else if(strcmp(command, "register")==0){
+            FILE *file = fopen("userInfo.txt", "r");
+            bool userFound = false;
+            if (file != NULL) {
+
+                while (fscanf(file, "%s %s %s", users[userCount].email, users[userCount].password, users[userCount].userName) != EOF) {
+                    // printf("Username:%s", users[userCount].email);
+                    // printf("Password:%s", users[userCount].password);
+                    // printf("Username:%s", users[userCount].email);
+                    if(strcmp(email, users[userCount].email) == 0 && strcmp(password, users[userCount].password) == 0)
+                    {
+                        //printf("\nHello\n");
+                        send(clientSocket, "User already exist!!!", 21, 0);
+                        userFound = true;
+                    }
+                    userCount++;
+                }
+                fclose(file);
+                
+                if(!userFound){
+                    file = fopen("userInfo.txt", "a");
+                    fprintf(file, "%s %s %s\n", email, password, username);
+                    pthread_mutex_lock(&mutex);
+                    clients[numClients].socket = clientSocket;
+                    strcpy(clients[numClients].username, username);
+                            
+                    numClients++;
+                    pthread_mutex_unlock(&mutex);
+                    // Create a new thread to handle the client
+                    pthread_create(&thread, NULL, handleClient, &clientSocket);
+                    memset(initialcommand, 0, sizeof(initialcommand));
+                    fclose(file);
+                }
+                
+            }
+        }
+   
+    }
+
+    // Close the server socket
+    close(serverSocket);
+
+    return 0;
+}
